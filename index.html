@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="style.css" />
+    <title>House Points Tracker</title>
+  </head>
+  <body>
+    <h1>House Points</h1>
+    <div id="houses">
+      <div class="house" data-house="Red">
+        <h2>Red</h2>
+        <p class="points">0</p>
+        <button class="add">+1</button>
+        <button class="subtract">−1</button>
+      </div>
+      <div class="house" data-house="Blue">
+        <h2>Blue</h2>
+        <p class="points">0</p>
+        <button class="add">+1</button>
+        <button class="subtract">−1</button>
+      </div>
+      <div class="house" data-house="Green">
+        <h2>Green</h2>
+        <p class="points">0</p>
+        <button class="add">+1</button>
+        <button class="subtract">−1</button>
+      </div>
+      <div class="house" data-house="Yellow">
+        <h2>Yellow</h2>
+        <p class="points">0</p>
+        <button class="add">+1</button>
+        <button class="subtract">−1</button>
+      </div>
+    </div>
+    <button id="reset">Reset All</button>
+    <script src="script.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("service-worker.js");
+      }
+    </script>
+  </body>
+</html>
