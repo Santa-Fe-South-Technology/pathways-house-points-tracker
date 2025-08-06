@@ -1,3 +1,27 @@
+// Mobile menu functionality
+const menuButton = document.querySelector('.menu-button');
+const navLinks = document.querySelector('.nav-links');
+
+if (menuButton && navLinks) {
+    menuButton.addEventListener('click', () => {
+        navLinks.classList.toggle('active');
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!navLinks.contains(e.target) && !menuButton.contains(e.target)) {
+            navLinks.classList.remove('active');
+        }
+    });
+
+    // Close menu when window is resized to desktop size
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            navLinks.classList.remove('active');
+        }
+    });
+}
+
 // Initialize localStorage if not exists
 if (!localStorage.getItem('housePoints')) {
     localStorage.setItem('housePoints', JSON.stringify({
