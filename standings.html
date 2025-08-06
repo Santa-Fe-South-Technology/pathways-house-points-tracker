@@ -8,13 +8,17 @@
     <title>House Standings - House Points Tracker</title>
   </head>
   <body>
+    <nav class="nav-container">
+      <div class="nav-links">
+        <a href="index.html" class="nav-button">Home</a>
+        <a href="submit.html" class="nav-button">Submit Points</a>
+        <a href="standings.html" class="nav-button">Standings</a>
+      </div>
+    </nav>
     <div class="container">
       <h1>House Standings</h1>
       <div id="graph-container">
         <canvas id="houseGraph"></canvas>
-      </div>
-      <div class="navigation">
-        <a href="submit.html" class="nav-button">Back to Form</a>
       </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

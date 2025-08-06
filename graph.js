@@ -26,19 +26,45 @@ document.addEventListener('DOMContentLoaded', function () {
                 data: points,
                 backgroundColor: colors,
                 borderColor: colors,
-                borderWidth: 1
+                borderWidth: 1,
+                borderRadius: 8
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: '#b3b3b3'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: '#b3b3b3'
+                    }
                 }
             },
             plugins: {
                 legend: {
                     display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Total House Points',
+                    color: '#ffffff',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    padding: 20
                 }
             }
         }
