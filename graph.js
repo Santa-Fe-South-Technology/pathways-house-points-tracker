@@ -19,6 +19,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
     new Chart(graphContainer, {
         type: 'bar',
+        plugins: [{
+            afterDraw: function (chart) {
+                var ctx = chart.ctx;
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+
+                chart.data.datasets.forEach(function (dataset, i) {
+                    chart.getDatasetMeta(i).data.forEach(function (bar, index) {
+                        var data = dataset.data[index];
+                        if (data !== 0) {
+                            ctx.fillText(data, bar.x, bar.y);
+                        }
+                    });
+                });
+            }
+        }],
         data: {
             labels: houses,
             datasets: [{
@@ -27,12 +45,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 backgroundColor: colors,
                 borderColor: colors,
                 borderWidth: 1,
-                borderRadius: 8
+                borderRadius: 8,
+                barPercentage: 0.8,
+                categoryPercentage: 0.9
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 20
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
