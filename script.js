@@ -127,3 +127,38 @@ async function fetchStandings() {
 if (document.getElementById('standings')) {
     fetchStandings();
 }
+
+// ======================
+// Fetch all submissions for submissions.html
+// ======================
+async function fetchSubmissions() {
+    const tableBody = document.querySelector('#submissionsTable tbody');
+    if (!tableBody) return;
+
+    try {
+        const res = await fetch('https://next-js-api-silk.vercel.app/api/data');
+        const data = await res.json(); // Returns an array of submission objects
+
+        tableBody.innerHTML = '';
+
+        data.forEach(sub => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${new Date(sub.created_at).toLocaleString()}</td>
+                <td>${sub.house}</td>
+                <td>${sub.student_name}</td>
+                <td>${sub.points}</td>
+                <td>${sub.teacher}</td>
+                <td>${sub.reason}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch (err) {
+        console.error('Failed to fetch submissions:', err);
+    }
+}
+
+// Only call if submissions table exists
+if (document.querySelector('#submissionsTable')) {
+    fetchSubmissions();
+}
