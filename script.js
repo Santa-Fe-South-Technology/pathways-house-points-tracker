@@ -132,33 +132,33 @@ if (document.getElementById('standings')) {
 // Fetch all submissions for submissions.html
 // ======================
 async function fetchSubmissions() {
-    const tableBody = document.querySelector('#submissionsTable tbody');
-    if (!tableBody) return;
-
     try {
-        const res = await fetch('https://next-js-api-silk.vercel.app/api/data');
-        const data = await res.json(); // Returns an array of submission objects
+        const res = await fetch('https://next-js-api-silk.vercel.app/api/data?type=submissions');
+        const submissions = await res.json();
 
-        tableBody.innerHTML = '';
+        const tbody = document.getElementById('submissionsBody');
+        if (!tbody) return;
 
-        data.forEach(sub => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${new Date(sub.created_at).toLocaleString()}</td>
-                <td>${sub.house}</td>
-                <td>${sub.student_name}</td>
-                <td>${sub.points}</td>
-                <td>${sub.teacher}</td>
-                <td>${sub.reason}</td>
-            `;
-            tableBody.appendChild(row);
+        tbody.innerHTML = '';
+
+        submissions.forEach(sub => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+        <td>${new Date(sub.created_at).toLocaleString()}</td>
+        <td>${sub.house}</td>
+        <td>${sub.student_name}</td>
+        <td>${sub.points}</td>
+        <td>${sub.teacher}</td>
+        <td>${sub.reason}</td>
+      `;
+            tbody.appendChild(tr);
         });
     } catch (err) {
         console.error('Failed to fetch submissions:', err);
     }
 }
 
-// Only call if submissions table exists
-if (document.querySelector('#submissionsTable')) {
+// Call this when submissions page loads
+if (document.getElementById('submissionsBody')) {
     fetchSubmissions();
 }
