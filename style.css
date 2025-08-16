@@ -262,3 +262,53 @@ button[type="submit"]:hover {
     transform: rotate(360deg);
   }
 }
+
+/* Submissions Table */
+#submissionsTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 40px auto;
+  background-color: var(--surface-dark);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+#submissionsTable thead {
+  background-color: var(--background-dark);
+}
+
+#submissionsTable th,
+#submissionsTable td {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid #404040;
+}
+
+#submissionsTable th {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background-color: var(--surface-dark);
+}
+
+#submissionsTable tbody tr:hover {
+  background-color: rgba(108, 99, 255, 0.1);
+}
+
+#submissionsTable tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+#submissionsTable td {
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  #submissionsTable th,
+  #submissionsTable td {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+}
