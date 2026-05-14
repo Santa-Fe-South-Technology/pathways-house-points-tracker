@@ -148,13 +148,13 @@ async function renderSubmissionsTable() {
             const tr = document.createElement('tr');
             tr.id = `row-${sub.id}`;
             tr.innerHTML = `
-                <td>${formatTimestamp(sub.timestamp)}</td>
-                <td>${sub.house || '--'}</td>
-                <td>${sub.studentName || '--'}</td>
-                <td>${sub.points ?? '--'}</td>
-                <td>${sub.teacher || '--'}</td>
-                <td>${sub.reason || '--'}</td>
-                <td><button onclick="deleteSubmission('${sub.id}')" style="background:#b00020;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Delete</button></td>
+                <td data-label="Timestamp">${formatTimestamp(sub.timestamp)}</td>
+                <td data-label="House">${sub.house || '--'}</td>
+                <td data-label="Student Name">${sub.studentName || '--'}</td>
+                <td data-label="Points">${sub.points ?? '--'}</td>
+                <td data-label="Teacher">${sub.teacher || '--'}</td>
+                <td data-label="Reason">${sub.reason || '--'}</td>
+                <td data-label="Admin"><button onclick="deleteSubmission('${sub.id}')" style="background:#b00020;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Delete</button></td>
             `;
             tbody.appendChild(tr);
         });
