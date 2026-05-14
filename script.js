@@ -1,6 +1,32 @@
-// ======================
+const HOUSE_NAMES = ['Ambrosius', 'Valerius', 'Nicostratus', 'Sapientia'];
+
+function getApiBaseUrl() {
+    const configured = window.HOUSE_POINTS_CONFIG && window.HOUSE_POINTS_CONFIG.API_BASE_URL;
+    if (!configured) {
+        return window.location.origin;
+    }
+
+    return configured.replace(/\/$/, '');
+}
+
+function apiUrl(path) {
+    return `${getApiBaseUrl()}${path}`;
+}
+
+function formatTimestamp(value) {
+    if (!value) return '--';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '--' : date.toLocaleString();
+}
+
+function showStatus(message, isError = false) {
+    const node = document.getElementById('formStatus');
+    if (!node) return;
+    node.textContent = message;
+    node.style.color = isError ? '#b00020' : '#0f6b30';
+}
+
 // Mobile menu functionality
-// ======================
 const menuButton = document.querySelector('.menu-button');
 const navLinks = document.querySelector('.nav-links');
 
@@ -9,14 +35,12 @@ if (menuButton && navLinks) {
         navLinks.classList.toggle('active');
     });
 
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!navLinks.contains(e.target) && !menuButton.contains(e.target)) {
+    document.addEventListener('click', (event) => {
+        if (!navLinks.contains(event.target) && !menuButton.contains(event.target)) {
             navLinks.classList.remove('active');
         }
     });
 
-    // Close menu when window is resized to desktop size
     window.addEventListener('resize', () => {
         if (window.innerWidth > 768) {
             navLinks.classList.remove('active');
@@ -24,141 +48,134 @@ if (menuButton && navLinks) {
     });
 }
 
-// ======================
-// Initialize localStorage
-// ======================
-if (!localStorage.getItem('housePoints')) {
-    localStorage.setItem('housePoints', JSON.stringify({
-        Ambrosius: 0,
-        Valerius: 0,
-        Nicostratus: 0,
-        Sapientia: 0
-    }));
+async function fetchStandingsData() {
+    const response = await fetch(apiUrl('/api/standings'));
+    if (!response.ok) {
+        throw new Error(`Standings request failed: ${response.status}`);
+    }
+    return response.json();
 }
 
-if (!localStorage.getItem('submissions')) {
-    localStorage.setItem('submissions', JSON.stringify([]));
+async function fetchSubmissionsData() {
+    const response = await fetch(apiUrl('/api/submissions'));
+    if (!response.ok) {
+        throw new Error(`Submissions request failed: ${response.status}`);
+    }
+    const payload = await response.json();
+    return Array.isArray(payload.submissions) ? payload.submissions : [];
 }
 
-// ======================
-// Form submission handling
-// ======================
-const form = document.getElementById('pointsForm');
-if (form) {
-    form.addEventListener('submit', async function (e) {
-        e.preventDefault();
+function renderHomeStats(standingsPayload) {
+    const totalNode = document.getElementById('totalSubmissions');
+    const leadingNode = document.getElementById('leadingHouse');
+    const teacherNode = document.getElementById('recentTeacher');
 
-        const submission = {
-            timestamp: new Date().toISOString(),
-            house: document.getElementById('house').value,
-            student_name: document.getElementById('studentName').value,
-            points: parseInt(document.getElementById('points').value),
-            teacher: document.getElementById('teacher').value,
-            reason: document.getElementById('reason').value
-        };
+    if (!totalNode && !leadingNode && !teacherNode) {
+        return;
+    }
 
-        // Optional: Update localStorage for offline fallback
-        const housePoints = JSON.parse(localStorage.getItem('housePoints'));
-        housePoints[submission.house] += submission.points;
-        localStorage.setItem('housePoints', JSON.stringify(housePoints));
-
-        const submissions = JSON.parse(localStorage.getItem('submissions'));
-        submissions.push(submission);
-        localStorage.setItem('submissions', JSON.stringify(submissions));
-
-        // POST to Vercel API
-        try {
-            const res = await fetch('https://next-js-api-silk.vercel.app/api/data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(submission)
-            });
-            const result = await res.json();
-            console.log('Submitted to API:', result);
-        } catch (err) {
-            console.error('API submission failed:', err);
-        }
-
-        // Redirect to standings page
-        window.location.href = 'standings.html';
-    });
-}
-
-// ======================
-// Fetch and display house standings
-// ======================
-async function fetchStandings() {
-    try {
-        const res = await fetch('https://next-js-api-silk.vercel.app/api/data');
-        const data = await res.json();
-
-        // Sum points by house
-        const totals = data.reduce((acc, row) => {
-            acc[row.house] = (acc[row.house] || 0) + row.points;
-            return acc;
-        }, {});
-
-        // Render standings
-        const container = document.getElementById('standings');
-        if (container) {
-            container.innerHTML = '';
-            const houseColors = {
-                Ambrosius: 'blue',
-                Valerius: 'purple',
-                Nicostratus: 'green',
-                Sapientia: 'maroon'
-            };
-
-            for (const house in totals) {
-                const div = document.createElement('div');
-                div.textContent = `${house}: ${totals[house]} points`;
-                div.style.color = houseColors[house] || 'black';
-                div.style.fontWeight = 'bold';
-                div.style.marginBottom = '0.5em';
-                container.appendChild(div);
+    const housePoints = standingsPayload.housePoints || {};
+    const leader = HOUSE_NAMES.reduce(
+        (best, house) => {
+            const score = Number(housePoints[house] || 0);
+            if (score > best.score) {
+                return { house, score };
             }
-        }
-    } catch (err) {
-        console.error('Failed to fetch standings:', err);
+            return best;
+        },
+        { house: '--', score: Number.NEGATIVE_INFINITY }
+    );
+
+    if (totalNode) {
+        totalNode.textContent = String(standingsPayload.submissionCount || 0);
+    }
+
+    if (leadingNode) {
+        leadingNode.textContent = leader.house === '--' ? '--' : `${leader.house} (${leader.score})`;
+    }
+
+    if (teacherNode) {
+        teacherNode.textContent = standingsPayload.lastSubmission?.teacher || '--';
     }
 }
 
-// Only call fetchStandings if the standings container exists
-if (document.getElementById('standings')) {
-    fetchStandings();
+async function handleFormSubmit(event) {
+    event.preventDefault();
+    showStatus('Saving submission...');
+
+    const submission = {
+        house: document.getElementById('house').value,
+        studentName: document.getElementById('studentName').value.trim(),
+        points: Number.parseInt(document.getElementById('points').value, 10),
+        teacher: document.getElementById('teacher').value.trim(),
+        reason: document.getElementById('reason').value.trim(),
+    };
+
+    try {
+        const response = await fetch(apiUrl('/api/submissions'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(submission),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.error || 'Unable to save submission');
+        }
+
+        showStatus('Saved successfully. Redirecting...');
+        window.location.href = 'standings.html';
+    } catch (error) {
+        console.error(error);
+        showStatus(error.message || 'Unable to save submission', true);
+    }
 }
 
-// ======================
-// Fetch all submissions for submissions.html
-// ======================
-async function fetchSubmissions() {
+async function renderSubmissionsTable() {
+    const tbody = document.getElementById('submissionsBody');
+    if (!tbody) return;
+
     try {
-        const res = await fetch('https://next-js-api-silk.vercel.app/api/data?type=submissions');
-        const submissions = await res.json();
-
-        const tbody = document.getElementById('submissionsBody');
-        if (!tbody) return;
-
+        const submissions = await fetchSubmissionsData();
         tbody.innerHTML = '';
 
-        submissions.forEach(sub => {
+        if (submissions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6">No submissions yet.</td></tr>';
+            return;
+        }
+
+        submissions.forEach((sub) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-        <td>${new Date(sub.created_at).toLocaleString()}</td>
-        <td>${sub.house}</td>
-        <td>${sub.student_name}</td>
-        <td>${sub.points}</td>
-        <td>${sub.teacher}</td>
-        <td>${sub.reason}</td>
-      `;
+                <td>${formatTimestamp(sub.timestamp)}</td>
+                <td>${sub.house || '--'}</td>
+                <td>${sub.studentName || '--'}</td>
+                <td>${sub.points ?? '--'}</td>
+                <td>${sub.teacher || '--'}</td>
+                <td>${sub.reason || '--'}</td>
+            `;
             tbody.appendChild(tr);
         });
-    } catch (err) {
-        console.error('Failed to fetch submissions:', err);
+    } catch (error) {
+        console.error(error);
+        tbody.innerHTML = '<tr><td colspan="6">Unable to load submissions. Check backend API configuration.</td></tr>';
     }
 }
 
-// Call this when submissions page loads
-if (document.getElementById('submissionsBody')) {
-    fetchSubmissions();
+async function initializePageData() {
+    try {
+        const standings = await fetchStandingsData();
+        renderHomeStats(standings);
+    } catch (error) {
+        console.error(error);
+    }
+
+    await renderSubmissionsTable();
 }
+
+const form = document.getElementById('pointsForm');
+if (form) {
+    form.addEventListener('submit', handleFormSubmit);
+}
+
+initializePageData();

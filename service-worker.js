@@ -1,4 +1,4 @@
-const CACHE_NAME = "house-tracker-v3";
+const CACHE_NAME = "house-tracker-v4";
 
 self.addEventListener("install", (e) => {
     e.waitUntil(
@@ -10,6 +10,7 @@ self.addEventListener("install", (e) => {
                 "/submissions.html",
                 "/standings.html",
                 "/style.css",
+                "/config.js",
                 "/script.js",
                 "/graph.js",
                 "/manifest.json",

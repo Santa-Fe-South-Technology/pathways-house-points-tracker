@@ -36,41 +36,7 @@
       </table>
     </div>
 
+    <script src="config.js"></script>
     <script src="script.js"></script>
-    <script>
-      // Fetch submissions from Vercel API and populate table
-      async function fetchSubmissions() {
-        try {
-          const res = await fetch(
-            "https://next-js-api-silk.vercel.app/api/data?type=submissions"
-          );
-          const submissions = await res.json();
-
-          const tbody = document.getElementById("submissionsBody");
-          tbody.innerHTML = "";
-
-          submissions.forEach((sub) => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-              <td>${new Date(sub.created_at).toLocaleString()}</td>
-              <td>${sub.house}</td>
-              <td>${sub.student_name}</td>
-              <td>${sub.points}</td>
-              <td>${sub.teacher}</td>
-              <td>${sub.reason}</td>
-            `;
-            tbody.appendChild(tr);
-          });
-        } catch (err) {
-          console.error("Failed to fetch submissions:", err);
-          const tbody = document.getElementById("submissionsBody");
-          tbody.innerHTML = `<tr><td colspan="6">Failed to load submissions</td></tr>`;
-        }
-      }
-
-      if (document.getElementById("submissionsBody")) {
-        fetchSubmissions();
-      }
-    </script>
   </body>
 </html>

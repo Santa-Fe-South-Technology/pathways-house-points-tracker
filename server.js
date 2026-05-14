@@ -1,32 +1,19 @@
 const express = require("express");
-const fs = require("fs/promises");
-const path = require("path");
+const { Pool } = require("pg");
 const crypto = require("crypto");
 require("dotenv").config();
 
 const app = express();
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 const ADMIN_PIN = process.env.HOUSE_POINTS_ADMIN_PIN || "1234";
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "house-points.json");
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+});
 
 const HOUSE_NAMES = ["Ambrosius", "Valerius", "Nicostratus", "Sapientia"];
-
-let writeQueue = Promise.resolve();
-
-function emptyPoints() {
-    return HOUSE_NAMES.reduce((acc, house) => {
-        acc[house] = 0;
-        return acc;
-    }, {});
-}
-
-function defaultStore() {
-    return {
-        housePoints: emptyPoints(),
-        submissions: [],
-    };
-}
 
 function sanitizeText(value, maxLength) {
     return String(value || "").trim().slice(0, maxLength);
@@ -37,79 +24,46 @@ function toInteger(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
-async function ensureDataFile() {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-
+async function initializeDatabase() {
+    const client = await pool.connect();
     try {
-        await fs.access(DATA_FILE);
-    } catch {
-        await fs.writeFile(DATA_FILE, JSON.stringify(defaultStore(), null, 2));
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS submissions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                house TEXT NOT NULL CHECK (house IN ('Ambrosius', 'Valerius', 'Nicostratus', 'Sapientia')),
+                student_name TEXT NOT NULL,
+                points INTEGER NOT NULL CHECK (points >= -200 AND points <= 200),
+                teacher TEXT NOT NULL,
+                reason TEXT NOT NULL
+            );
+        `);
+
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_submissions_house ON submissions(house);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_submissions_timestamp ON submissions(timestamp);`);
+    } finally {
+        client.release();
     }
 }
 
-function normalizeStore(raw) {
-    const safe = defaultStore();
+async function getHousePointTotals() {
+    const result = await pool.query(`
+        SELECT house, COALESCE(SUM(points), 0) as total
+        FROM submissions
+        GROUP BY house
+        ORDER BY total DESC;
+    `);
 
-    if (raw && typeof raw === "object") {
-        if (raw.housePoints && typeof raw.housePoints === "object") {
-            for (const house of HOUSE_NAMES) {
-                const value = toInteger(raw.housePoints[house]);
-                safe.housePoints[house] = value === null ? 0 : value;
-            }
-        }
+    const totals = HOUSE_NAMES.reduce((acc, house) => {
+        acc[house] = 0;
+        return acc;
+    }, {});
 
-        if (Array.isArray(raw.submissions)) {
-            safe.submissions = raw.submissions
-                .map((item) => ({
-                    id: sanitizeText(item.id, 64),
-                    timestamp: sanitizeText(item.timestamp, 64),
-                    house: HOUSE_NAMES.includes(item.house) ? item.house : null,
-                    studentName: sanitizeText(item.studentName, 120),
-                    points: toInteger(item.points),
-                    teacher: sanitizeText(item.teacher, 120),
-                    reason: sanitizeText(item.reason, 500),
-                }))
-                .filter(
-                    (item) =>
-                        item.id &&
-                        item.timestamp &&
-                        item.house &&
-                        item.studentName &&
-                        item.teacher &&
-                        item.reason &&
-                        item.points !== null
-                );
-        }
+    for (const row of result.rows) {
+        totals[row.house] = row.total;
     }
 
-    return safe;
-}
-
-function recalculateTotals(store) {
-    const totals = emptyPoints();
-
-    for (const submission of store.submissions) {
-        totals[submission.house] += submission.points;
-    }
-
-    store.housePoints = totals;
-    return store;
-}
-
-async function readStore() {
-    await ensureDataFile();
-    const content = await fs.readFile(DATA_FILE, "utf-8");
-    const parsed = JSON.parse(content);
-    const normalized = recalculateTotals(normalizeStore(parsed));
-    return normalized;
-}
-
-async function writeStore(data) {
-    writeQueue = writeQueue.then(async () => {
-        await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
-    });
-
-    await writeQueue;
+    return totals;
 }
 
 function standingsFromPoints(points) {
@@ -118,7 +72,31 @@ function standingsFromPoints(points) {
         .sort((a, b) => b.total - a.total);
 }
 
+initializeDatabase().catch(err => {
+    console.error("Database initialization failed:", err);
+    process.exit(1);
+});
+
 app.use(express.json({ limit: "1mb" }));
+
+app.use((req, res, next) => {
+    const requestedOrigin = req.headers.origin;
+
+    if (CORS_ORIGIN === "*" || !requestedOrigin || requestedOrigin === CORS_ORIGIN) {
+        res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN === "*" ? "*" : requestedOrigin);
+    }
+
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Vary", "Origin");
+
+    if (req.method === "OPTIONS") {
+        return res.status(204).end();
+    }
+
+    return next();
+});
+
 app.use(express.static(__dirname));
 
 app.get("/api/health", (_req, res) => {
@@ -127,50 +105,86 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/standings", async (_req, res) => {
     try {
-        const store = await readStore();
+        const housePoints = await getHousePointTotals();
+        const countResult = await pool.query(`SELECT COUNT(*) as count FROM submissions;`);
+        const lastResult = await pool.query(`
+            SELECT id, timestamp, house, student_name, points, teacher, reason
+            FROM submissions
+            ORDER BY timestamp DESC
+            LIMIT 1;
+        `);
+
+        const lastSubmission = lastResult.rows[0] ? {
+            id: lastResult.rows[0].id,
+            timestamp: lastResult.rows[0].timestamp,
+            house: lastResult.rows[0].house,
+            studentName: lastResult.rows[0].student_name,
+            points: lastResult.rows[0].points,
+            teacher: lastResult.rows[0].teacher,
+            reason: lastResult.rows[0].reason,
+        } : null;
+
         res.json({
-            housePoints: store.housePoints,
-            standings: standingsFromPoints(store.housePoints),
-            submissionCount: store.submissions.length,
-            lastSubmission: store.submissions.at(-1) || null,
+            housePoints,
+            standings: standingsFromPoints(housePoints),
+            submissionCount: Number(countResult.rows[0].count),
+            lastSubmission,
         });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: "Unable to load standings" });
     }
 });
 
 app.get("/api/submissions", async (req, res) => {
     try {
-        const store = await readStore();
         const house = sanitizeText(req.query.house, 40);
-        const teacher = sanitizeText(req.query.teacher, 120).toLowerCase();
-        const q = sanitizeText(req.query.q, 200).toLowerCase();
+        const teacher = sanitizeText(req.query.teacher, 120);
+        const q = sanitizeText(req.query.q, 200);
         const limit = Math.min(Math.max(toInteger(req.query.limit) || 200, 1), 1000);
 
-        let items = [...store.submissions].sort((a, b) =>
-            a.timestamp < b.timestamp ? 1 : -1
-        );
+        let query = `SELECT id, timestamp, house, student_name, points, teacher, reason FROM submissions WHERE 1=1`;
+        const params = [];
 
         if (house && HOUSE_NAMES.includes(house)) {
-            items = items.filter((item) => item.house === house);
+            query += ` AND house = $${params.length + 1}`;
+            params.push(house);
         }
 
         if (teacher) {
-            items = items.filter((item) => item.teacher.toLowerCase().includes(teacher));
+            query += ` AND LOWER(teacher) LIKE LOWER($${params.length + 1})`;
+            params.push(`%${teacher}%`);
         }
 
         if (q) {
-            items = items.filter((item) => {
-                const haystack = `${item.studentName} ${item.teacher} ${item.reason} ${item.house}`.toLowerCase();
-                return haystack.includes(q);
-            });
+            query += ` AND (LOWER(student_name) LIKE LOWER($${params.length + 1}) OR LOWER(teacher) LIKE LOWER($${params.length + 1}) OR LOWER(reason) LIKE LOWER($${params.length + 1}) OR house = $${params.length + 1})`;
+            params.push(`%${q}%`);
+            params.push(`%${q}%`);
+            params.push(`%${q}%`);
+            params.push(q);
         }
 
+        query += ` ORDER BY timestamp DESC LIMIT $${params.length + 1}`;
+        params.push(limit);
+
+        const result = await pool.query(query, params);
+
+        const submissions = result.rows.map(row => ({
+            id: row.id,
+            timestamp: row.timestamp,
+            house: row.house,
+            studentName: row.student_name,
+            points: row.points,
+            teacher: row.teacher,
+            reason: row.reason,
+        }));
+
         res.json({
-            total: items.length,
-            submissions: items.slice(0, limit),
+            total: submissions.length,
+            submissions,
         });
-    } catch {
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ error: "Unable to load submissions" });
     }
 });
@@ -195,29 +209,32 @@ app.post("/api/submissions", async (req, res) => {
             return res.status(400).json({ error: "Points must be an integer between -200 and 200" });
         }
 
-        const store = await readStore();
+        const result = await pool.query(`
+            INSERT INTO submissions (house, student_name, points, teacher, reason)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, timestamp, house, student_name, points, teacher, reason;
+        `, [house, studentName, points, teacher, reason]);
 
+        const row = result.rows[0];
         const submission = {
-            id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            house,
-            studentName,
-            points,
-            teacher,
-            reason,
+            id: row.id,
+            timestamp: row.timestamp,
+            house: row.house,
+            studentName: row.student_name,
+            points: row.points,
+            teacher: row.teacher,
+            reason: row.reason,
         };
 
-        store.submissions.push(submission);
-        store.housePoints[house] += points;
-
-        await writeStore(store);
+        const housePoints = await getHousePointTotals();
 
         return res.status(201).json({
             message: "Submission saved",
             submission,
-            housePoints: store.housePoints,
+            housePoints,
         });
-    } catch {
+    } catch (error) {
+        console.error(error);
         return res.status(500).json({ error: "Unable to save submission" });
     }
 });
@@ -253,33 +270,40 @@ app.delete("/api/submissions/:id", async (req, res) => {
             return res.status(403).json({ error: "Invalid PIN code" });
         }
 
-        const store = await readStore();
-        const index = store.submissions.findIndex((submission) => submission.id === id);
+        const getResult = await pool.query(`SELECT * FROM submissions WHERE id = $1;`, [id]);
 
-        if (index === -1) {
+        if (getResult.rows.length === 0) {
             return res.status(404).json({ error: "Submission not found" });
         }
 
-        const [removedSubmission] = store.submissions.splice(index, 1);
-        const updated = recalculateTotals(store);
-
-        await writeStore(updated);
+        const submission = getResult.rows[0];
+        await pool.query(`DELETE FROM submissions WHERE id = $1;`, [id]);
+        const housePoints = await getHousePointTotals();
 
         return res.json({
             message: "Submission removed",
-            removedSubmission,
-            housePoints: updated.housePoints,
+            removedSubmission: {
+                id: submission.id,
+                timestamp: submission.timestamp,
+                house: submission.house,
+                studentName: submission.student_name,
+                points: submission.points,
+                teacher: submission.teacher,
+                reason: submission.reason,
+            },
+            housePoints,
         });
-    } catch {
+    } catch (error) {
+        console.error(error);
         return res.status(500).json({ error: "Unable to delete submission" });
     }
 });
 
 app.get("*", (_req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
+    res.sendFile(__dirname + "/index.html");
 });
 
-function startServer(port, retriesLeft = 10) {
+async function startServer(port, retriesLeft = 10) {
     const server = app.listen(port);
 
     server.on("listening", () => {
@@ -299,15 +323,8 @@ function startServer(port, retriesLeft = 10) {
     });
 }
 
-ensureDataFile()
-    .then(() => {
-        if (ADMIN_PIN === "1234") {
-            console.warn("Using default admin PIN. Set HOUSE_POINTS_ADMIN_PIN for production use.");
-        }
+if (ADMIN_PIN === "1234") {
+    console.warn("Using default admin PIN. Set HOUSE_POINTS_ADMIN_PIN for production use.");
+}
 
-        startServer(PORT);
-    })
-    .catch((error) => {
-        console.error("Failed to initialize app:", error);
-        process.exit(1);
-    });
+startServer(PORT);

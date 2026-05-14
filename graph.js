@@ -7,21 +7,20 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     let totals = HOUSES.reduce((acc, h) => ({ ...acc, [h]: 0 }), {});
 
-    try {
-        const res = await fetch('https://next-js-api-silk.vercel.app/api/data');
-        const data = await res.json();
+    const configured = window.HOUSE_POINTS_CONFIG && window.HOUSE_POINTS_CONFIG.API_BASE_URL;
+    const apiBaseUrl = (configured || window.location.origin).replace(/\/$/, '');
 
-        // Handle both API formats: object with totals or array of rows
-        if (Array.isArray(data)) {
-            data.forEach(row => {
-                if (totals[row.house] !== undefined) totals[row.house] += row.points;
-            });
-        } else {
-            // API already returns totals object
-            HOUSES.forEach(h => {
-                if (data[h] !== undefined) totals[h] = data[h];
-            });
+    try {
+        const res = await fetch(`${apiBaseUrl}/api/standings`);
+        if (!res.ok) {
+            throw new Error(`Standings request failed: ${res.status}`);
         }
+
+        const payload = await res.json();
+        const housePoints = payload.housePoints || {};
+        HOUSES.forEach(h => {
+            if (housePoints[h] !== undefined) totals[h] = housePoints[h];
+        });
     } catch (err) {
         console.error('Failed to fetch house points:', err);
     }
