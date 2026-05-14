@@ -78,19 +78,9 @@ initializeDatabase().catch(err => {
 app.use(express.json({ limit: "1mb" }));
 
 app.use((req, res, next) => {
-    const requestedOrigin = req.headers.origin;
-
-    if (CORS_ORIGIN === "*") {
-        res.setHeader("Access-Control-Allow-Origin", "*");
-    } else if (requestedOrigin) {
-        res.setHeader("Access-Control-Allow-Origin", requestedOrigin);
-    } else if (CORS_ORIGIN && CORS_ORIGIN !== "*") {
-        res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
-    }
-
+    res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res.setHeader("Vary", "Origin");
 
     if (req.method === "OPTIONS") {
         return res.status(204).end();
