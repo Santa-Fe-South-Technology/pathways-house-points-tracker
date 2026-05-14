@@ -1,4 +1,14 @@
 const HOUSE_NAMES = ['Ambrosius', 'Valerius', 'Nicostratus', 'Sapientia'];
+const HOUSE_COLORS = {
+    'Ambrosius': 'D4A574',
+    'Valerius': '5E7BA7',
+    'Nicostratus': '7E6B82',
+    'Sapientia': '9B8E4B'
+};
+
+function getHouseColor(house) {
+    return HOUSE_COLORS[house] || 'd4af37';
+}
 
 function getApiBaseUrl() {
     const configured = window.HOUSE_POINTS_CONFIG && window.HOUSE_POINTS_CONFIG.API_BASE_URL;
@@ -147,14 +157,16 @@ async function renderSubmissionsTable() {
         submissions.forEach((sub) => {
             const tr = document.createElement('tr');
             tr.id = `row-${sub.id}`;
+            const pointsClass = (sub.points > 0) ? 'positive' : (sub.points < 0) ? 'negative' : '';
+            const pointsSign = (sub.points > 0) ? '+' : '';
             tr.innerHTML = `
-                <td data-label="Timestamp">${formatTimestamp(sub.timestamp)}</td>
-                <td data-label="House">${sub.house || '--'}</td>
-                <td data-label="Student Name">${sub.studentName || '--'}</td>
-                <td data-label="Points">${sub.points ?? '--'}</td>
-                <td data-label="Teacher">${sub.teacher || '--'}</td>
-                <td data-label="Reason">${sub.reason || '--'}</td>
-                <td data-label="Admin"><button onclick="deleteSubmission('${sub.id}')" style="background:#b00020;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Delete</button></td>
+                <td>${formatTimestamp(sub.timestamp)}</td>
+                <td><span class="house-pill" style="background:#${getHouseColor(sub.house)}">${sub.house || '--'}</span></td>
+                <td>${sub.studentName || '--'}</td>
+                <td class="points-cell ${pointsClass}">${pointsSign}${sub.points ?? '--'} points</td>
+                <td><strong>By:</strong> ${sub.teacher || '--'}</td>
+                <td><strong>For:</strong> ${sub.reason || '--'}</td>
+                <td><button onclick="deleteSubmission('${sub.id}')" style="background:#b00020;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">Delete</button></td>
             `;
             tbody.appendChild(tr);
         });

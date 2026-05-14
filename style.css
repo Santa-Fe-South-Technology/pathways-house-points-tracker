@@ -574,7 +574,7 @@ button[type="submit"]:disabled {
 
   .submissions-table {
     border-collapse: separate;
-    border-spacing: 0 10px;
+    border-spacing: 0;
   }
 
   .submissions-table thead {
@@ -582,9 +582,9 @@ button[type="submit"]:disabled {
   }
 
   .submissions-table tbody,
-  .submissions-table tr,
-  .submissions-table td {
-    display: block;
+  .submissions-table tr {
+    display: flex;
+    flex-direction: column;
     width: 100%;
   }
 
@@ -592,26 +592,67 @@ button[type="submit"]:disabled {
     background: #0f1014;
     border: 1px solid #2f2615;
     border-radius: 12px;
-    padding: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
   }
 
   .submissions-table td {
-    border-bottom: 1px dashed #2b2414;
-    padding: 8px 4px;
+    display: inline;
+    border: none;
+    padding: 0;
   }
 
-  .submissions-table td:last-child {
-    border-bottom: none;
-  }
-
-  .submissions-table td::before {
-    content: attr(data-label);
-    display: block;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  /* Mobile card layout */
+  .submissions-table td:nth-child(1) {
+    /* Timestamp */
+    font-size: 0.8rem;
     color: var(--muted);
-    margin-bottom: 2px;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .submissions-table td:nth-child(2) {
+    /* House */
+    display: inline-block;
+    margin-right: 8px;
+    margin-bottom: 8px;
+  }
+
+  .submissions-table td:nth-child(3) {
+    /* Student Name */
+    font-weight: 600;
+    color: var(--ink);
+    display: inline-block;
+    flex-grow: 1;
+  }
+
+  .submissions-table td:nth-child(4) {
+    /* Points */
+    font-weight: 700;
+    display: block;
+    margin: 8px 0;
+    font-size: 1.1rem;
+  }
+
+  .submissions-table td:nth-child(5),
+  .submissions-table td:nth-child(6) {
+    /* Teacher + Reason */
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 4px 0;
+  }
+
+  .submissions-table td:nth-child(7) {
+    /* Admin button */
+    display: block;
+    margin-top: 10px;
+  }
+
+  .submissions-table td button {
+    width: 100%;
+    padding: 8px 10px !important;
+    font-size: 0.85rem;
   }
 
   .submissions-table .table-message-row {
@@ -629,12 +670,6 @@ button[type="submit"]:disabled {
 
   .submissions-table .table-message-row td::before {
     content: none;
-  }
-
-  .submissions-table td button {
-    width: 100%;
-    padding: 8px 10px !important;
-    font-size: 0.9rem;
   }
 }
 
