@@ -572,104 +572,99 @@ button[type="submit"]:disabled {
     margin-top: -4px;
   }
 
-  .submissions-table {
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-
-  .submissions-table thead {
+  /* Hide table on mobile, show mobile list */
+  .table-wrap {
     display: none;
   }
 
-  .submissions-table tbody,
-  .submissions-table tr {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
+  #mobileSubmissionsList {
+    display: block;
   }
 
-  .submissions-table tr {
+  .mobile-submission-item {
     background: #0f1014;
     border: 1px solid #2f2615;
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .mobile-sub-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 10px;
   }
 
-  .submissions-table td {
-    display: inline;
-    border: none;
-    padding: 0;
-  }
-
-  /* Mobile card layout */
-  .submissions-table td:nth-child(1) {
-    /* Timestamp */
-    font-size: 0.8rem;
-    color: var(--muted);
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  .submissions-table td:nth-child(2) {
-    /* House */
+  .house-badge {
     display: inline-block;
-    margin-right: 8px;
-    margin-bottom: 8px;
+    color: #fff;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
   }
 
-  .submissions-table td:nth-child(3) {
-    /* Student Name */
+  .mobile-points {
+    font-size: 1.3rem;
+    font-weight: 800;
+  }
+
+  .mobile-points.positive {
+    color: var(--success);
+  }
+
+  .mobile-points.negative {
+    color: var(--error);
+  }
+
+  .mobile-sub-name {
+    font-size: 1rem;
     font-weight: 600;
     color: var(--ink);
-    display: inline-block;
-    flex-grow: 1;
+    margin-bottom: 6px;
   }
 
-  .submissions-table td:nth-child(4) {
-    /* Points */
-    font-weight: 700;
-    display: block;
-    margin: 8px 0;
-    font-size: 1.1rem;
-  }
-
-  .submissions-table td:nth-child(5),
-  .submissions-table td:nth-child(6) {
-    /* Teacher + Reason */
-    display: block;
+  .mobile-sub-meta {
     font-size: 0.85rem;
     color: var(--muted);
-    margin: 4px 0;
+    margin-bottom: 4px;
   }
 
-  .submissions-table td:nth-child(7) {
-    /* Admin button */
-    display: block;
-    margin-top: 10px;
+  .mobile-sub-reason {
+    font-size: 0.85rem;
+    color: #b8a976;
+    margin-bottom: 6px;
+    font-style: italic;
   }
 
-  .submissions-table td button {
+  .mobile-sub-time {
+    font-size: 0.75rem;
+    color: #7d7048;
+    margin-bottom: 10px;
+  }
+
+  .mobile-delete-btn {
     width: 100%;
-    padding: 8px 10px !important;
+    background: linear-gradient(135deg, #a73535, #7e1f1f);
+    color: #ffe8b9;
+    border: 1px solid #8e2626;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-weight: 600;
+    cursor: pointer;
     font-size: 0.85rem;
   }
 
-  .submissions-table .table-message-row {
-    padding: 0;
-    border: none;
-    background: transparent;
+  .mobile-delete-btn:hover {
+    box-shadow: 0 4px 12px rgba(167, 53, 53, 0.3);
   }
 
-  .submissions-table .table-message-row td {
-    border: 1px solid #2f2615;
-    border-radius: 12px;
-    background: #0f1014;
-    padding: 12px;
-  }
-
-  .submissions-table .table-message-row td::before {
-    content: none;
+  .no-submissions {
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
   }
 }
 

@@ -1,9 +1,9 @@
 const HOUSE_NAMES = ['Ambrosius', 'Valerius', 'Nicostratus', 'Sapientia'];
 const HOUSE_COLORS = {
-    'Ambrosius': 'D4A574',
-    'Valerius': '5E7BA7',
-    'Nicostratus': '7E6B82',
-    'Sapientia': '9B8E4B'
+    'Ambrosius': '2563EB',
+    'Valerius': '7E57C2',
+    'Nicostratus': '2D6A4F',
+    'Sapientia': '8B3A3A'
 };
 
 function getHouseColor(house) {
@@ -143,36 +143,64 @@ async function handleFormSubmit(event) {
 
 async function renderSubmissionsTable() {
     const tbody = document.getElementById('submissionsBody');
-    if (!tbody) return;
+    const mobileList = document.getElementById('mobileSubmissionsList');
+    if (!tbody && !mobileList) return;
 
     try {
         const submissions = await fetchSubmissionsData();
-        tbody.innerHTML = '';
+        if (tbody) tbody.innerHTML = '';
+        if (mobileList) mobileList.innerHTML = '';
 
         if (submissions.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6">No submissions yet.</td></tr>';
+            const msg = 'No submissions yet.';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6">' + msg + '</td></tr>';
+            if (mobileList) mobileList.innerHTML = '<div class="no-submissions">' + msg + '</div>';
             return;
         }
 
         submissions.forEach((sub) => {
-            const tr = document.createElement('tr');
-            tr.id = `row-${sub.id}`;
             const pointsClass = (sub.points > 0) ? 'positive' : (sub.points < 0) ? 'negative' : '';
             const pointsSign = (sub.points > 0) ? '+' : '';
-            tr.innerHTML = `
-                <td>${formatTimestamp(sub.timestamp)}</td>
-                <td><span class="house-pill" style="background:#${getHouseColor(sub.house)}">${sub.house || '--'}</span></td>
-                <td>${sub.studentName || '--'}</td>
-                <td class="points-cell ${pointsClass}">${pointsSign}${sub.points ?? '--'} points</td>
-                <td><strong>By:</strong> ${sub.teacher || '--'}</td>
-                <td><strong>For:</strong> ${sub.reason || '--'}</td>
-                <td><button onclick="deleteSubmission('${sub.id}')" style="background:#b00020;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">Delete</button></td>
-            `;
-            tbody.appendChild(tr);
+            
+            // Desktop table row
+            if (tbody) {
+                const tr = document.createElement('tr');
+                tr.id = `row-${sub.id}`;
+                tr.innerHTML = `
+                    <td>${formatTimestamp(sub.timestamp)}</td>
+                    <td><span class="house-pill" style="background:#${getHouseColor(sub.house)}">${sub.house || '--'}</span></td>
+                    <td>${sub.studentName || '--'}</td>
+                    <td class="points-cell ${pointsClass}">${pointsSign}${sub.points ?? '--'} points</td>
+                    <td><strong>By:</strong> ${sub.teacher || '--'}</td>
+                    <td><strong>For:</strong> ${sub.reason || '--'}</td>
+                    <td><button onclick="deleteSubmission('${sub.id}')" style="background:#b00020;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">Delete</button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+            
+            // Mobile list item
+            if (mobileList) {
+                const item = document.createElement('div');
+                item.className = 'mobile-submission-item';
+                item.id = `mobile-row-${sub.id}`;
+                item.innerHTML = `
+                    <div class="mobile-sub-header">
+                        <span class="house-badge" style="background:#${getHouseColor(sub.house)}">${sub.house || '--'}</span>
+                        <span class="mobile-points ${pointsClass}">${pointsSign}${sub.points ?? '--'}</span>
+                    </div>
+                    <div class="mobile-sub-name">${sub.studentName || '--'}</div>
+                    <div class="mobile-sub-meta">${sub.teacher || '--'}</div>
+                    <div class="mobile-sub-reason">${sub.reason || '--'}</div>
+                    <div class="mobile-sub-time">${formatTimestamp(sub.timestamp)}</div>
+                    <button onclick="deleteSubmission('${sub.id}')" class="mobile-delete-btn">Delete</button>
+                `;
+                mobileList.appendChild(item);
+            }
         });
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td colspan="6">Unable to load submissions. Check backend API configuration.</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6">Unable to load submissions. Check backend API configuration.</td></tr>';
+        if (mobileList) mobileList.innerHTML = '<div style="padding:20px;text-align:center;color:#888;">Unable to load submissions. Check backend API configuration.</div>';
     }
 }
 
