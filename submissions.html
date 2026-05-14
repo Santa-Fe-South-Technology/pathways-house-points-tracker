@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -28,6 +28,7 @@
             <th>Points</th>
             <th>Teacher</th>
             <th>Reason</th>
+            <th>Admin</th>
           </tr>
         </thead>
         <tbody id="submissionsBody">
@@ -38,5 +39,29 @@
 
     <script src="config.js"></script>
     <script src="script.js"></script>
+    <script>
+      async function deleteSubmission(id) {
+        const pin = prompt('Enter admin PIN to delete this submission:');
+        if (!pin) return;
+
+        const apiBase = (window.HOUSE_POINTS_CONFIG && window.HOUSE_POINTS_CONFIG.API_BASE_URL) || window.location.origin;
+
+        try {
+          const res = await fetch(`${apiBase}/api/submissions/${id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            alert(data.error || 'Failed to delete submission');
+            return;
+          }
+          document.getElementById(`row-${id}`).remove();
+        } catch (err) {
+          alert('Unable to connect to server');
+        }
+      }
+    </script>
   </body>
 </html>
