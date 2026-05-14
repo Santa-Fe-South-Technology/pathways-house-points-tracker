@@ -1,0 +1,19 @@
+{
+  "housePoints": {
+    "Ambrosius": 75,
+    "Valerius": 0,
+    "Nicostratus": 0,
+    "Sapientia": 0
+  },
+  "submissions": [
+    {
+      "id": "1c787707-4150-483e-b19a-6b83d33e7cb5",
+      "timestamp": "2026-05-13T20:39:29.195Z",
+      "house": "Ambrosius",
+      "studentName": "aaaaa",
+      "points": 75,
+      "teacher": "aaaa",
+      "reason": "aaaaa"
+    }
+  ]
+}

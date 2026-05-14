@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -13,24 +13,46 @@
       <div class="nav-links">
         <a href="index.html" class="nav-button">Home</a>
         <a href="submit.html" class="nav-button">Submit Points</a>
+        <a href="submissions.html" class="nav-button">Submissions</a>
         <a href="standings.html" class="nav-button">Standings</a>
         <a href="submissions.html" class="nav-button">Submissions</a>
       </div>
     </nav>
     <div class="container">
-      <h1>Welcome to House Points Tracker</h1>
-      <div class="card">
-        <p
-          style="
-            text-align: center;
-            color: var(--text-secondary);
-            margin-bottom: 32px;
-          "
-        >
-          Track and manage house points for Ambrosius, Valerius, Nicostratus,
-          and Sapientia
+      <h1>Pathways House Points Tracker</h1>
+      <div class="card hero-card">
+        <p class="hero-text">
+          Record and track points for Ambrosius, Valerius, Nicostratus, and
+          Sapientia across the full school year.
         </p>
-        <a href="submit.html" class="enter-button">Enter System</a>
+        <div class="hero-actions">
+          <a href="submit.html" class="enter-button">Submit New Points</a>
+          <a href="standings.html" class="secondary-button">View Standings</a>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="overviewStats">
+        <div class="stat-card">
+          <p class="stat-label">Total Submissions</p>
+          <p class="stat-value" id="totalSubmissions">--</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-label">Leading House</p>
+          <p class="stat-value" id="leadingHouse">--</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-label">Most Recent Teacher</p>
+          <p class="stat-value" id="recentTeacher">--</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">How It Works</h2>
+        <ul class="feature-list">
+          <li>Teachers submit points from any device.</li>
+          <li>All submissions are visible for transparency.</li>
+          <li>Standings update instantly and stay saved over time.</li>
+        </ul>
       </div>
     </div>
     <script src="script.js"></script>
