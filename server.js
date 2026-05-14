@@ -10,7 +10,6 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 
 const HOUSE_NAMES = ["Ambrosius", "Valerius", "Nicostratus", "Sapientia"];
@@ -73,8 +72,7 @@ function standingsFromPoints(points) {
 }
 
 initializeDatabase().catch(err => {
-    console.error("Database initialization failed:", err);
-    process.exit(1);
+    console.error("Database initialization failed (server will still start):", err.message);
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -82,8 +80,12 @@ app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
     const requestedOrigin = req.headers.origin;
 
-    if (CORS_ORIGIN === "*" || !requestedOrigin || requestedOrigin === CORS_ORIGIN) {
-        res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN === "*" ? "*" : requestedOrigin);
+    if (CORS_ORIGIN === "*") {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+    } else if (requestedOrigin) {
+        res.setHeader("Access-Control-Allow-Origin", requestedOrigin);
+    } else if (CORS_ORIGIN && CORS_ORIGIN !== "*") {
+        res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
     }
 
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
