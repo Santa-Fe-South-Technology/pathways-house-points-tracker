@@ -468,6 +468,10 @@ button[type="submit"]:disabled {
   color: var(--muted);
 }
 
+#mobileSubmissionsList {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .stats-grid {
     grid-template-columns: 1fr;
