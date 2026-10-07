@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Manage Teachers - House Points Tracker</title>
+    <style>
+      .teacher-list { list-style: none; padding: 0; margin: 16px 0 0; }
+      .teacher-row {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        padding: 12px 0; border-bottom: 1px solid #3f3217;
+      }
+      .teacher-row .t-name { flex: 1 1 180px; font-weight: 600; }
+      .teacher-row .t-meta { color: var(--muted); font-size: 0.85rem; }
+      .teacher-row.inactive .t-name { text-decoration: line-through; color: var(--muted); }
+      .small-btn {
+        background: transparent; color: var(--ink); border: 1px solid #3f3217;
+        border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 0.85rem; cursor: pointer;
+      }
+      .small-btn:hover { border-color: var(--primary); }
+      .small-btn.danger { color: var(--error); }
+      .pin-reveal {
+        margin-top: 16px; padding: 14px; border: 1px solid var(--primary);
+        border-radius: 10px; background: #1c1a12;
+      }
+      .pin-reveal strong { font-size: 1.6rem; letter-spacing: 0.2em; color: var(--primary); }
+      .row-inline { display: flex; gap: 10px; flex-wrap: wrap; }
+      .row-inline > * { flex: 1 1 200px; }
+      #manageSection { display: none; }
+    </style>
+  </head>
+  <body>
+    <nav class="nav-container">
+      <button class="menu-button" aria-label="Toggle menu">☰</button>
+      <div class="nav-links">
+        <a href="index.html" class="nav-button">Home</a>
+        <a href="submit.html" class="nav-button">Submit Points</a>
+        <a href="submissions.html" class="nav-button">Submissions</a>
+        <a href="standings.html" class="nav-button">Standings</a>
+      </div>
+    </nav>
+
+    <div class="container">
+      <h1>Manage Teacher PINs</h1>
+
+      <div class="form-container" id="loginSection">
+        <p class="section-subtitle">Enter the admin PIN to add teachers and manage their PINs.</p>
+        <form id="adminLogin">
+          <div class="form-group">
+            <label for="adminPin">Admin PIN:</label>
+            <input type="password" id="adminPin" autocomplete="off" required />
+          </div>
+          <button type="submit">Unlock</button>
+          <p id="loginStatus" class="form-status" aria-live="polite"></p>
+        </form>
+      </div>
+
+      <div class="form-container" id="manageSection">
+        <h2>Add a teacher</h2>
+        <form id="addTeacher">
+          <div class="row-inline">
+            <div class="form-group">
+              <label for="newName">Teacher name (as it should appear):</label>
+              <input type="text" id="newName" maxlength="120" placeholder="e.g. Mr. Snyder" required />
+            </div>
+            <div class="form-group">
+              <label for="newPin">PIN (optional, 4–8 digits):</label>
+              <input type="text" id="newPin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+                     placeholder="Leave blank to auto-generate" />
+            </div>
+          </div>
+          <button type="submit">Add teacher</button>
+          <p id="manageStatus" class="form-status" aria-live="polite"></p>
+        </form>
+
+        <div id="pinReveal" class="pin-reveal" hidden></div>
+
+        <h2 style="margin-top:28px">Teachers</h2>
+        <ul id="teacherList" class="teacher-list"></ul>
+      </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+    <script>
+      let adminPin = "";
+
+      function setStatus(id, message, isError) {
+        const node = document.getElementById(id);
+        node.textContent = message;
+        node.className = "form-status " + (isError ? "error" : "success");
+      }
+
+      async function adminFetch(path, options = {}) {
+        const res = await fetch(apiUrl(path), {
+          ...options,
+          headers: { "Content-Type": "application/json", "X-Admin-Pin": adminPin },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        return data;
+      }
+
+      function showPin(name, pin) {
+        const box = document.getElementById("pinReveal");
+        box.hidden = false;
+        box.innerHTML = "";
+        const line1 = document.createElement("div");
+        line1.textContent = `PIN for ${name}:`;
+        const strong = document.createElement("strong");
+        strong.textContent = pin;
+        const note = document.createElement("p");
+        note.className = "section-subtitle";
+        note.textContent = "Write this down or share it privately now. It is not stored and can't be shown again — you can only reset it.";
+        box.append(line1, strong, note);
+      }
+
+      async function loadTeachers() {
+        const { teachers } = await adminFetch("/api/admin/teachers");
+        const list = document.getElementById("teacherList");
+        list.innerHTML = "";
+        if (teachers.length === 0) {
+          const li = document.createElement("li");
+          li.className = "t-meta";
+          li.textContent = "No teachers yet. Add one above.";
+          list.appendChild(li);
+          return;
+        }
+        teachers.forEach((t) => {
+          const li = document.createElement("li");
+          li.className = "teacher-row" + (t.active ? "" : " inactive");
+
+          const name = document.createElement("span");
+          name.className = "t-name";
+          name.textContent = t.name;
+
+          const meta = document.createElement("span");
+          meta.className = "t-meta";
+          meta.textContent = `${t.submissionCount} submissions${t.active ? "" : " · disabled"}`;
+
+          const reset = document.createElement("button");
+          reset.className = "small-btn";
+          reset.textContent = "Reset PIN";
+          reset.onclick = async () => {
+            if (!confirm(`Give ${t.name} a new PIN? Their old PIN will stop working.`)) return;
+            try {
+              const data = await adminFetch(`/api/admin/teachers/${t.id}`, {
+                method: "PATCH", body: JSON.stringify({ resetPin: true }),
+              });
+              showPin(t.name, data.pin);
+            } catch (e) { alert(e.message); }
+          };
+
+          const toggle = document.createElement("button");
+          toggle.className = "small-btn";
+          toggle.textContent = t.active ? "Disable" : "Enable";
+          toggle.onclick = async () => {
+            try {
+              await adminFetch(`/api/admin/teachers/${t.id}`, {
+                method: "PATCH", body: JSON.stringify({ active: !t.active }),
+              });
+              loadTeachers();
+            } catch (e) { alert(e.message); }
+          };
+
+          const remove = document.createElement("button");
+          remove.className = "small-btn danger";
+          remove.textContent = "Remove";
+          remove.onclick = async () => {
+            if (!confirm(`Remove ${t.name}? Their past points stay; their PIN stops working.`)) return;
+            try {
+              await adminFetch(`/api/admin/teachers/${t.id}`, { method: "DELETE" });
+              loadTeachers();
+            } catch (e) { alert(e.message); }
+          };
+
+          li.append(name, meta, reset, toggle, remove);
+          list.appendChild(li);
+        });
+      }
+
+      document.getElementById("adminLogin").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        adminPin = document.getElementById("adminPin").value.trim();
+        try {
+          await loadTeachers();
+          document.getElementById("loginSection").style.display = "none";
+          document.getElementById("manageSection").style.display = "block";
+        } catch (err) {
+          adminPin = "";
+          setStatus("loginStatus", err.message, true);
+        }
+      });
+
+      document.getElementById("addTeacher").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = document.getElementById("newName").value.trim();
+        const teacherPin = document.getElementById("newPin").value.trim();
+        try {
+          const data = await adminFetch("/api/admin/teachers", {
+            method: "POST", body: JSON.stringify({ name, teacherPin }),
+          });
+          showPin(data.teacher.name, data.pin);
+          setStatus("manageStatus", `${data.teacher.name} added.`, false);
+          e.target.reset();
+          loadTeachers();
+        } catch (err) {
+          setStatus("manageStatus", err.message, true);
+        }
+      });
+    </script>
+  </body>
+</html>

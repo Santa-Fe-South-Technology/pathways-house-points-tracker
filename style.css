@@ -308,6 +308,21 @@ button[type="submit"]:disabled {
   min-height: 1.25em;
 }
 
+.pin-identity {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-height: 1.2em;
+}
+
+.pin-identity.ok {
+  color: var(--success);
+}
+
+.pin-identity.bad {
+  color: var(--error);
+}
+
 .form-status.success {
   color: var(--success);
 }

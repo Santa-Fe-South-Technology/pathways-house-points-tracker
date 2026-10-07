@@ -10,7 +10,8 @@ This app uses a **split deployment model** for reliability:
 - **Backend API**: Node/Express server with Postgres database
 - **Database**: Netlify Database (managed Postgres)
 
-Data persists **all year** in the database, not in browser storage or ephemeral server files.
+Data persists **all year** in the database, not in browser storage or ephemeral
+server files.
 
 ## Features
 
@@ -23,29 +24,33 @@ Data persists **all year** in the database, not in browser storage or ephemeral 
 ## Run Locally
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
 
 2. Create a `.env` file with a local Postgres connection (or use docker):
+
    ```bash
    DATABASE_URL=postgresql://localhost/house_points
    HOUSE_POINTS_ADMIN_PIN=your-pin
    ```
 
 3. Start the app:
+
    ```bash
    npm start
    ```
 
 4. Open in browser:
+
    ```
    http://localhost:3000
    ```
 
 5. For local dev, keep `config.js` as:
    ```javascript
-   API_BASE_URL: window.location.origin
+   API_BASE_URL: window.location.origin;
    ```
 
 ## Deploy to Netlify (Recommended)
@@ -91,6 +96,7 @@ No other tables needed. That's it.
 This step differs from a traditional Netlify deploy. For now:
 
 **Option A: Deploy to Render instead** (easier with Netlify Database)
+
 1. Create a Render account at [render.com](https://render.com)
 2. Connect your GitHub repo
 3. Create a new Web Service
@@ -110,7 +116,7 @@ This step differs from a traditional Netlify deploy. For now:
 1. Ensure GitHub Pages is enabled in your repo settings
 2. Update `config.js`:
    ```javascript
-   API_BASE_URL: 'https://your-render-domain.onrender.com'
+   API_BASE_URL: "https://your-render-domain.onrender.com";
    ```
 3. Push changes:
    ```bash
@@ -148,8 +154,10 @@ NODE_ENV=production
 
 - **GET /api/health** — Health check
 - **GET /api/standings** — Current house totals and standings
-- **GET /api/submissions** — All submissions (supports filters: `?house=`, `?teacher=`, `?q=`)
-- **POST /api/submissions** — Submit new points (requires: house, studentName, points, teacher, reason)
+- **GET /api/submissions** — All submissions (supports filters: `?house=`,
+  `?teacher=`, `?q=`)
+- **POST /api/submissions** — Submit new points (requires: house, studentName,
+  points, teacher, reason)
 - **DELETE /api/submissions/:id** — Delete submission (requires: PIN in body)
 
 ## Data Schema
@@ -171,25 +179,61 @@ CREATE TABLE submissions (
 ## Troubleshooting
 
 **"Unable to load standings"**
+
 - Check `DATABASE_URL` is set correctly
 - Verify database is running and accessible
 - Check CORS_ORIGIN matches your frontend domain
 
 **"Submission failed"**
+
 - Ensure all required fields are filled
 - Points must be between -200 and 200
 - House must be one of the four valid names
 
 **Frontend not updating after new submission**
+
 - Clear browser cache or hard refresh (Cmd+Shift+R)
 - Check API response in browser DevTools Network tab
 
 ## Data Persistence
 
-All submissions are stored in Netlify Database (managed Postgres). Data persists:
+All submissions are stored in Netlify Database (managed Postgres). Data
+persists:
+
 - Across server restarts
 - Across deployments
 - For the entire school year
 - Indefinitely (unless database is deleted)
 
 This is much more reliable than JSON files or browser local storage.
+
+## Teacher PINs
+
+Every point submission now requires a teacher PIN. The server looks up the
+teacher's name from the PIN, so the name on a submission can't be faked and
+students can't add points without a PIN.
+
+- Set `PIN_SECRET` (a long random string) in Render **before** adding teachers.
+  Don't change it later, or every teacher PIN stops working.
+- Go to `/teachers.html`, enter the admin PIN, and add each teacher. Leave the
+  PIN blank to auto-generate a 6-digit PIN. The PIN is shown once; you can reset
+  it any time.
+- Disable or remove a teacher to stop their PIN working (their past points stay).
+- After 8 wrong PINs, a device is locked out for 15 minutes.
+
+## Embedding in WordPress (pathwaysmiddlecollege.org)
+
+The Render server already serves the whole app, so WordPress only needs to show it.
+
+**Option 1 – Embed on a page:** create a page (e.g. `/house-points`), add a
+**Custom HTML** block, and paste:
+
+```html
+<iframe src="https://pathways-house-points-tracker.onrender.com"
+        style="width:100%;height:1100px;border:0;border-radius:12px"
+        title="Pathways House Points"></iframe>
+```
+
+**Option 2 – Subdomain (cleanest):** in Render → Settings → Custom Domains, add
+`points.pathwaysmiddlecollege.org`, then add the CNAME record Render gives you
+wherever the domain's DNS is managed.

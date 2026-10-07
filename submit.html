@@ -59,14 +59,19 @@
         </div>
 
         <div class="form-group">
-          <label for="teacher">Teacher:</label>
+          <label for="teacherPin">Teacher PIN:</label>
           <input
-            type="text"
-            id="teacher"
-            name="teacher"
-            placeholder="Enter teacher name"
+            type="password"
+            id="teacherPin"
+            name="teacherPin"
+            inputmode="numeric"
+            autocomplete="off"
+            pattern="[0-9]{4,8}"
+            maxlength="8"
+            placeholder="Enter your teacher PIN"
             required
           />
+          <p id="teacherIdentity" class="pin-identity" aria-live="polite"></p>
         </div>
 
         <div class="form-group">

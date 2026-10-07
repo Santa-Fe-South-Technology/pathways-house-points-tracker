@@ -109,6 +109,42 @@ function renderHomeStats(standingsPayload) {
     }
 }
 
+// Show "Submitting as ___" once a teacher has typed a valid-looking PIN.
+const teacherPinInput = document.getElementById('teacherPin');
+const teacherIdentity = document.getElementById('teacherIdentity');
+let pinCheckTimer = null;
+
+if (teacherPinInput && teacherIdentity) {
+    teacherPinInput.addEventListener('input', () => {
+        clearTimeout(pinCheckTimer);
+        teacherIdentity.textContent = '';
+        teacherIdentity.className = 'pin-identity';
+        const pin = teacherPinInput.value.trim();
+        if (!/^\d{4,8}$/.test(pin)) return;
+
+        pinCheckTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(apiUrl('/api/teachers/verify-pin'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin }),
+                });
+                const payload = await response.json();
+                if (teacherPinInput.value.trim() !== pin) return;
+                if (response.ok) {
+                    teacherIdentity.textContent = `Submitting as ${payload.name}`;
+                    teacherIdentity.className = 'pin-identity ok';
+                } else {
+                    teacherIdentity.textContent = payload.error || 'PIN not recognized';
+                    teacherIdentity.className = 'pin-identity bad';
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }, 700);
+    });
+}
+
 async function handleFormSubmit(event) {
     event.preventDefault();
     showStatus('Saving submission...');
@@ -117,7 +153,7 @@ async function handleFormSubmit(event) {
         house: document.getElementById('house').value,
         studentName: document.getElementById('studentName').value.trim(),
         points: Number.parseInt(document.getElementById('points').value, 10),
-        teacher: document.getElementById('teacher').value.trim(),
+        pin: document.getElementById('teacherPin').value.trim(),
         reason: document.getElementById('reason').value.trim(),
     };
 
@@ -161,7 +197,7 @@ async function renderSubmissionsTable() {
         submissions.forEach((sub) => {
             const pointsClass = (sub.points > 0) ? 'positive' : (sub.points < 0) ? 'negative' : '';
             const pointsSign = (sub.points > 0) ? '+' : '';
-            
+
             // Desktop table row
             if (tbody) {
                 const tr = document.createElement('tr');
@@ -177,7 +213,7 @@ async function renderSubmissionsTable() {
                 `;
                 tbody.appendChild(tr);
             }
-            
+
             // Mobile list item
             if (mobileList) {
                 const item = document.createElement('div');

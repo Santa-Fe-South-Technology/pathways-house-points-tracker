@@ -14,6 +14,92 @@ const pool = new Pool({
 
 const HOUSE_NAMES = ["Ambrosius", "Valerius", "Nicostratus", "Sapientia"];
 
+// Secret used to hash teacher PINs. Falls back to the admin PIN so existing
+// deployments keep working, but PIN_SECRET should be set to a long random value.
+const PIN_SECRET = process.env.PIN_SECRET || `house-points:${ADMIN_PIN}`;
+
+function hashPin(pin) {
+    return crypto.createHmac("sha256", PIN_SECRET).update(String(pin)).digest("hex");
+}
+
+function isValidPinFormat(pin) {
+    return /^\d{4,8}$/.test(pin);
+}
+
+function generatePin() {
+    return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
+function safeEqual(a, b) {
+    const bufA = Buffer.from(String(a));
+    const bufB = Buffer.from(String(b));
+    return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
+}
+
+// Simple in-memory brute-force protection: after too many wrong PINs from one
+// device/IP, lock it out for a while so students can't guess teacher PINs.
+const MAX_FAILED_ATTEMPTS = 8;
+const LOCKOUT_MS = 15 * 60 * 1000;
+const failedAttempts = new Map();
+
+function clientKey(req) {
+    return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+function isLockedOut(req) {
+    const entry = failedAttempts.get(clientKey(req));
+    if (!entry) return false;
+    if (Date.now() - entry.first > LOCKOUT_MS) {
+        failedAttempts.delete(clientKey(req));
+        return false;
+    }
+    return entry.count >= MAX_FAILED_ATTEMPTS;
+}
+
+function recordFailure(req) {
+    const key = clientKey(req);
+    const entry = failedAttempts.get(key);
+    if (!entry || Date.now() - entry.first > LOCKOUT_MS) {
+        failedAttempts.set(key, { count: 1, first: Date.now() });
+    } else {
+        entry.count += 1;
+    }
+}
+
+function clearFailures(req) {
+    failedAttempts.delete(clientKey(req));
+}
+
+const LOCKOUT_MESSAGE = "Too many incorrect PIN attempts. Please wait 15 minutes and try again.";
+
+async function findTeacherByPin(pin) {
+    if (!isValidPinFormat(pin)) return null;
+    const result = await pool.query(
+        `SELECT id, name FROM teachers WHERE pin_hash = $1 AND active = TRUE LIMIT 1;`,
+        [hashPin(pin)]
+    );
+    return result.rows[0] || null;
+}
+
+function checkAdminPin(req, res) {
+    if (isLockedOut(req)) {
+        res.status(429).json({ error: LOCKOUT_MESSAGE });
+        return false;
+    }
+    const pin = sanitizeText(req.get("x-admin-pin") || (req.body && req.body.pin), 40);
+    if (!pin) {
+        res.status(400).json({ error: "Admin PIN is required" });
+        return false;
+    }
+    if (!safeEqual(pin, ADMIN_PIN)) {
+        recordFailure(req);
+        res.status(403).json({ error: "Invalid admin PIN" });
+        return false;
+    }
+    clearFailures(req);
+    return true;
+}
+
 function sanitizeText(value, maxLength) {
     return String(value || "").trim().slice(0, maxLength);
 }
@@ -40,6 +126,16 @@ async function initializeDatabase() {
 
         await client.query(`CREATE INDEX IF NOT EXISTS idx_submissions_house ON submissions(house);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_submissions_timestamp ON submissions(timestamp);`);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teachers (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name TEXT NOT NULL,
+                pin_hash TEXT NOT NULL UNIQUE,
+                active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
     } finally {
         client.release();
     }
@@ -75,12 +171,15 @@ initializeDatabase().catch(err => {
     console.error("Database initialization failed (server will still start):", err.message);
 });
 
+// Render (and most hosts) sit behind a proxy; trust it so req.ip is the real client.
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "1mb" }));
 
 app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Pin");
 
     if (req.method === "OPTIONS") {
         return res.status(204).end();
@@ -183,9 +282,26 @@ app.get("/api/submissions", async (req, res) => {
 
 app.post("/api/submissions", async (req, res) => {
     try {
+        if (isLockedOut(req)) {
+            return res.status(429).json({ error: LOCKOUT_MESSAGE });
+        }
+
+        const pin = sanitizeText(req.body.pin, 20);
+        if (!pin) {
+            return res.status(401).json({ error: "Teacher PIN is required" });
+        }
+
+        const teacherRecord = await findTeacherByPin(pin);
+        if (!teacherRecord) {
+            recordFailure(req);
+            return res.status(403).json({ error: "Invalid teacher PIN" });
+        }
+        clearFailures(req);
+
+        // The teacher name always comes from the PIN, never from the form.
+        const teacher = teacherRecord.name;
         const house = sanitizeText(req.body.house, 40);
         const studentName = sanitizeText(req.body.studentName, 120);
-        const teacher = sanitizeText(req.body.teacher, 120);
         const reason = sanitizeText(req.body.reason, 500);
         const points = toInteger(req.body.points);
 
@@ -193,8 +309,8 @@ app.post("/api/submissions", async (req, res) => {
             return res.status(400).json({ error: "Invalid house" });
         }
 
-        if (!studentName || !teacher || !reason) {
-            return res.status(400).json({ error: "Student name, teacher, and reason are required" });
+        if (!studentName || !reason) {
+            return res.status(400).json({ error: "Student name and reason are required" });
         }
 
         if (points === null || points < -200 || points > 200) {
@@ -231,36 +347,174 @@ app.post("/api/submissions", async (req, res) => {
     }
 });
 
+// Teachers check their PIN before submitting; returns their name only.
+app.post("/api/teachers/verify-pin", async (req, res) => {
+    try {
+        if (isLockedOut(req)) {
+            return res.status(429).json({ error: LOCKOUT_MESSAGE });
+        }
+        const pin = sanitizeText(req.body.pin, 20);
+        const teacherRecord = await findTeacherByPin(pin);
+        if (!teacherRecord) {
+            recordFailure(req);
+            return res.status(403).json({ error: "Invalid teacher PIN" });
+        }
+        clearFailures(req);
+        return res.json({ ok: true, name: teacherRecord.name });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Unable to verify PIN" });
+    }
+});
+
 app.post("/api/admin/verify-pin", (req, res) => {
-    const pin = sanitizeText(req.body.pin, 40);
-
-    if (!pin) {
-        return res.status(400).json({ error: "PIN code is required" });
-    }
-
-    if (pin !== ADMIN_PIN) {
-        return res.status(403).json({ error: "Invalid PIN code" });
-    }
-
+    if (!checkAdminPin(req, res)) return;
     return res.json({ ok: true });
+});
+
+// ---- Teacher management (admin PIN required, sent as X-Admin-Pin header) ----
+
+app.get("/api/admin/teachers", async (req, res) => {
+    if (!checkAdminPin(req, res)) return;
+    try {
+        const result = await pool.query(`
+            SELECT t.id, t.name, t.active, t.created_at,
+                   COUNT(s.id)::int AS submission_count
+            FROM teachers t
+            LEFT JOIN submissions s ON s.teacher = t.name
+            GROUP BY t.id
+            ORDER BY t.active DESC, LOWER(t.name);
+        `);
+        return res.json({
+            teachers: result.rows.map(row => ({
+                id: row.id,
+                name: row.name,
+                active: row.active,
+                createdAt: row.created_at,
+                submissionCount: row.submission_count,
+            })),
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Unable to load teachers" });
+    }
+});
+
+app.post("/api/admin/teachers", async (req, res) => {
+    if (!checkAdminPin(req, res)) return;
+    try {
+        const name = sanitizeText(req.body.name, 120);
+        let pin = sanitizeText(req.body.teacherPin, 20);
+
+        if (!name) {
+            return res.status(400).json({ error: "Teacher name is required" });
+        }
+        if (pin && !isValidPinFormat(pin)) {
+            return res.status(400).json({ error: "PIN must be 4 to 8 digits" });
+        }
+        if (pin && safeEqual(pin, ADMIN_PIN)) {
+            return res.status(400).json({ error: "Teacher PIN cannot match the admin PIN" });
+        }
+
+        // Generate a unique 6-digit PIN if one wasn't provided.
+        for (let attempt = 0; !pin && attempt < 20; attempt += 1) {
+            const candidate = generatePin();
+            const existing = await pool.query(`SELECT 1 FROM teachers WHERE pin_hash = $1;`, [hashPin(candidate)]);
+            if (existing.rows.length === 0 && candidate !== ADMIN_PIN) pin = candidate;
+        }
+
+        const result = await pool.query(
+            `INSERT INTO teachers (name, pin_hash) VALUES ($1, $2) RETURNING id, name, active, created_at;`,
+            [name, hashPin(pin)]
+        );
+        const row = result.rows[0];
+        // The plain PIN is returned only once, right now. It is never stored.
+        return res.status(201).json({
+            teacher: { id: row.id, name: row.name, active: row.active, createdAt: row.created_at },
+            pin,
+        });
+    } catch (error) {
+        if (error.code === "23505") {
+            return res.status(409).json({ error: "That PIN is already in use. Choose a different one." });
+        }
+        console.error(error);
+        return res.status(500).json({ error: "Unable to add teacher" });
+    }
+});
+
+// Reset a teacher's PIN, rename them, or activate/deactivate them.
+app.patch("/api/admin/teachers/:id", async (req, res) => {
+    if (!checkAdminPin(req, res)) return;
+    try {
+        const id = sanitizeText(req.params.id, 64);
+        const existing = await pool.query(`SELECT id, name FROM teachers WHERE id = $1;`, [id]);
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ error: "Teacher not found" });
+        }
+
+        let newPin = null;
+        if (req.body.resetPin) {
+            newPin = sanitizeText(req.body.teacherPin, 20);
+            if (newPin && !isValidPinFormat(newPin)) {
+                return res.status(400).json({ error: "PIN must be 4 to 8 digits" });
+            }
+            for (let attempt = 0; !newPin && attempt < 20; attempt += 1) {
+                const candidate = generatePin();
+                const clash = await pool.query(`SELECT 1 FROM teachers WHERE pin_hash = $1;`, [hashPin(candidate)]);
+                if (clash.rows.length === 0 && candidate !== ADMIN_PIN) newPin = candidate;
+            }
+            await pool.query(`UPDATE teachers SET pin_hash = $1 WHERE id = $2;`, [hashPin(newPin), id]);
+        }
+
+        if (typeof req.body.active === "boolean") {
+            await pool.query(`UPDATE teachers SET active = $1 WHERE id = $2;`, [req.body.active, id]);
+        }
+
+        const name = sanitizeText(req.body.name, 120);
+        if (name) {
+            await pool.query(`UPDATE teachers SET name = $1 WHERE id = $2;`, [name, id]);
+        }
+
+        const updated = await pool.query(`SELECT id, name, active, created_at FROM teachers WHERE id = $1;`, [id]);
+        const row = updated.rows[0];
+        return res.json({
+            teacher: { id: row.id, name: row.name, active: row.active, createdAt: row.created_at },
+            pin: newPin,
+        });
+    } catch (error) {
+        if (error.code === "23505") {
+            return res.status(409).json({ error: "That PIN is already in use. Choose a different one." });
+        }
+        console.error(error);
+        return res.status(500).json({ error: "Unable to update teacher" });
+    }
+});
+
+app.delete("/api/admin/teachers/:id", async (req, res) => {
+    if (!checkAdminPin(req, res)) return;
+    try {
+        const id = sanitizeText(req.params.id, 64);
+        const result = await pool.query(`DELETE FROM teachers WHERE id = $1 RETURNING id;`, [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Teacher not found" });
+        }
+        // Past submissions keep the teacher's name; only their PIN stops working.
+        return res.json({ ok: true });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Unable to remove teacher" });
+    }
 });
 
 app.delete("/api/submissions/:id", async (req, res) => {
     try {
         const id = sanitizeText(req.params.id, 64);
-        const pin = sanitizeText(req.body.pin, 40);
 
         if (!id) {
             return res.status(400).json({ error: "Submission id is required" });
         }
 
-        if (!pin) {
-            return res.status(400).json({ error: "PIN code is required" });
-        }
-
-        if (pin !== ADMIN_PIN) {
-            return res.status(403).json({ error: "Invalid PIN code" });
-        }
+        if (!checkAdminPin(req, res)) return;
 
         const getResult = await pool.query(`SELECT * FROM submissions WHERE id = $1;`, [id]);
 

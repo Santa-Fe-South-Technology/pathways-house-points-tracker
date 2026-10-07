@@ -1,4 +1,4 @@
-const CACHE_NAME = "house-tracker-v4";
+const CACHE_NAME = "house-tracker-v5";
 
 self.addEventListener("install", (e) => {
     e.waitUntil(
